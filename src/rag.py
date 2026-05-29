@@ -10,11 +10,12 @@ Retrieval-Augmented Generation process:
     with the source filenames that contributed to it.
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 import requests
 
 from . import config
+from .chunker import split_text
 from .embedder import Embedder
 from .vectorstore import VectorStore
 
@@ -28,11 +29,53 @@ class RAG:
         self._embedder = Embedder(config.EMBED_MODEL)
         self._store = VectorStore(str(config.CHROMA_DIR))
 
-    def answer(self, question: str) -> Dict[str, Any]:
+    def clear_index(self) -> None:
+        """Remove every chunk from the vector store."""
+        self._store.clear()
+
+    def ingest_documents(self, documents: List[Dict[str, str]]) -> int:
+        """Ingest new documents into the vector store.
+
+        Args:
+            documents: List of dicts with 'source' and 'text' keys.
+
+        Returns:
+            The number of chunks added to the index.
+        """
+        all_ids: list[str] = []
+        all_texts: list[str] = []
+        all_metadatas: list[dict] = []
+
+        for doc in documents:
+            source = doc["source"]
+            text = doc["text"]
+            chunks = split_text(text, config.CHUNK_SIZE, config.CHUNK_OVERLAP)
+
+            for idx, chunk in enumerate(chunks):
+                chunk_id = f"{source}::{idx}"
+                all_ids.append(chunk_id)
+                all_texts.append(chunk)
+                all_metadatas.append({"source": source, "chunk_index": idx})
+
+        if not all_texts:
+            return 0
+
+        embeddings = self._embedder.embed(all_texts)
+        self._store.add(
+            ids=all_ids,
+            embeddings=embeddings,
+            documents=all_texts,
+            metadatas=all_metadatas,
+        )
+        return len(all_texts)
+
+    def answer(self, question: str, debug: bool = False) -> Dict[str, Any]:
         """Answer a question using retrieved context.
 
         Args:
             question: The user's natural-language question.
+            debug: If True, print the retrieved chunks to stdout before
+                   generating the answer.
 
         Returns:
             A dictionary with:
@@ -64,6 +107,13 @@ class RAG:
             if src not in seen:
                 seen.add(src)
                 sources.append(src)
+
+        if debug:
+            print("\n--- Retrieved Chunks ---")
+            for i, (doc, meta) in enumerate(zip(chunks, metadatas)):
+                print(f"\nChunk {i+1} [{meta['source']}]:")
+                print(doc[:300])
+            print("--- End Chunks ---\n")
 
         # ------------------------------------------------------------------
         # STAGE 2: GENERATE

@@ -81,3 +81,8 @@ class VectorStore:
     def count(self) -> int:
         """Return the total number of chunks stored in the collection."""
         return self._collection.count()
+
+    def clear(self) -> None:
+        """Delete every chunk by removing and recreating the collection."""
+        self._client.delete_collection("documents")
+        self._collection = self._client.get_or_create_collection(name="documents")

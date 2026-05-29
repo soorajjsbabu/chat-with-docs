@@ -6,8 +6,9 @@ Each loaded document is returned as a dictionary containing the
 filename and the full text content. Empty files are skipped.
 """
 
+from io import BytesIO
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 
 def _load_pdf(path: Path) -> str:
@@ -40,6 +41,43 @@ def _load_text(path: Path) -> str:
         The file contents as a string.
     """
     return path.read_text(encoding="utf-8")
+
+
+def _load_pdf_from_bytes(content: bytes) -> str:
+    """Extract text from PDF bytes."""
+    from pypdf import PdfReader
+
+    reader = PdfReader(BytesIO(content))
+    text_parts = []
+    for page in reader.pages:
+        page_text = page.extract_text()
+        if page_text:
+            text_parts.append(page_text)
+    return "\n".join(text_parts)
+
+
+def load_document_from_bytes(content: bytes, filename: str) -> Optional[Dict[str, str]]:
+    """Load a single document from raw bytes.
+
+    Args:
+        content: The raw file bytes.
+        filename: The original filename (used to determine file type).
+
+    Returns:
+        A dict with 'source' and 'text', or None if unsupported or empty.
+    """
+    suffix = Path(filename).suffix.lower()
+    if suffix == ".pdf":
+        text = _load_pdf_from_bytes(content)
+    elif suffix in (".txt", ".md"):
+        text = content.decode("utf-8")
+    else:
+        return None
+
+    if not text.strip():
+        return None
+
+    return {"source": filename, "text": text}
 
 
 def load_documents(folder: Path) -> List[Dict[str, str]]:

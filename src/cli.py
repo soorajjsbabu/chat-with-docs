@@ -32,7 +32,7 @@ def run() -> None:
                 continue
 
             # Retrieve context and generate an answer.
-            result = rag.answer(question)
+            result = rag.answer(question, debug=True)
 
             # Display the LLM response.
             print(f"Answer: {result['answer']}")
