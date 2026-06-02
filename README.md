@@ -2,9 +2,9 @@
 
 A full-stack RAG (Retrieval-Augmented Generation) app that lets you upload your own documents and ask natural language questions about them. Answers are grounded in your document content with source citations — the model won't guess if the answer isn't there.
 
-Built with Python, SentenceTransformers, ChromaDB, Ollama, FastAPI, and Vue.js. Everything runs locally — no OpenAI API key, no cloud costs.
+Built with Python, SentenceTransformers, ChromaDB, Ollama, FastAPI, and Vue.js. Runs fully locally — no OpenAI API key, no cloud costs. One-command setup with Docker.
 
-![Chat With Your Docs UI](./screenshots/Screenshot%202026-05-29%20152958.png)
+![Chat With Your Docs UI](./screenshots/ui.png)
 
 ---
 
@@ -37,70 +37,93 @@ Every time the backend starts, the vector store is cleared — only files you up
 | PDF Parsing    | pypdf                                       |
 | Backend API    | FastAPI + Uvicorn                           |
 | Frontend       | Vue 3 + Vite (Composition API)              |
+| Containerisation | Docker + Docker Compose                   |
 | Language       | Python 3.12                                 |
 
 ---
 
 ## ✅ Prerequisites
 
-- **Python 3.10+**
-- **Node.js 18+**
-- **Git**
-- **Ollama** — download from [ollama.com](https://ollama.com)
-- An NVIDIA GPU is recommended (RTX 3060 or better) but not required
+**To run with Docker (recommended):**
+- [Docker Desktop](https://www.docker.com/products/docker-desktop)
+- NVIDIA GPU with drivers 526+ (optional, for GPU acceleration)
+
+**To run locally without Docker:**
+- Python 3.10+
+- Node.js 22+
+- Git
+- [Ollama](https://ollama.com)
 
 ---
 
-## 🚀 Getting Started
+## 🐳 Quick Start with Docker (Recommended)
+
+This is the easiest way to run the app — one command starts everything.
 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/<your-username>/chat-with-docs.git
+git clone https://github.com/soorajjsbabu/chat-with-docs.git
 cd chat-with-docs
 ```
 
-### 2. Create and activate a virtual environment
-
-**Windows:**
-```cmd
-python -m venv .venv
-.venv\Scripts\activate
-```
-
-**macOS/Linux:**
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-### 3. Install Python dependencies
+### 2. Start all services
 
 ```bash
-pip install -r requirements.txt
+docker compose up --build
 ```
 
-### 4. Set up Ollama
+This starts three containers automatically:
+- **Ollama** — LLM server (port 11434)
+- **FastAPI backend** — REST API (port 8000)
+- **Vue frontend** — served by Nginx (port 5173)
 
-Pull the model (~5 GB download):
+First build takes 3-5 minutes while it downloads images and installs dependencies.
+
+### 3. Pull the LLM model
+
+In a new terminal (while docker compose is running):
 
 ```bash
-ollama pull llama3.1:8b
+docker exec -it chat-with-docs-ollama-1 ollama pull llama3.1:8b
 ```
 
-### 5. Install frontend dependencies
+This downloads the Llama 3.1 8B model (~5 GB) into the container.
 
-```bash
-cd frontend
-npm install
-cd ..
-```
+### 4. Open the app
+
+Go to **http://localhost:5173** in your browser.
+
+> **GPU Note:** If you have an NVIDIA GPU (driver 526+), Ollama automatically uses it inside Docker for much faster responses. No extra configuration needed.
 
 ---
 
-## ▶️ Running the App
+## 🚀 Running Without Docker
 
-You need **three terminals** running simultaneously:
+If you prefer to run without Docker, you need three terminals.
+
+### Setup
+
+```bash
+# 1. Create virtual environment
+python -m venv .venv
+
+# Windows
+.venv\Scripts\activate
+# macOS/Linux
+source .venv/bin/activate
+
+# 2. Install Python dependencies
+pip install -r requirements.txt
+
+# 3. Pull the Ollama model
+ollama pull llama3.1:8b
+
+# 4. Install frontend dependencies
+cd frontend && npm install && cd ..
+```
+
+### Run
 
 **Terminal 1 — Ollama:**
 ```bash
@@ -109,29 +132,28 @@ ollama serve
 
 **Terminal 2 — FastAPI backend:**
 ```bash
-# From project root, with venv activated
 uvicorn api.main:app --reload
 ```
-Backend runs at **http://localhost:8000**
 
 **Terminal 3 — Vue frontend:**
 ```bash
 cd frontend
 npm run dev
 ```
-Frontend runs at **http://localhost:5173**
+
+Open **http://localhost:5173**
 
 ---
 
 ## 📖 How to Use
 
-1. Open **http://localhost:5173** in your browser
+1. Open **http://localhost:5173**
 2. Click **Choose Files** and select one or more PDF, TXT, or MD files
-3. Click **Upload** and wait for the confirmation message (e.g. *"Processed 1 file(s). 42 chunks added"*)
-4. Type a question about your documents in the chat input and press **Enter** or click **Send**
-5. The assistant will answer with source citations below each response
+3. Click **Upload** and wait for the confirmation (e.g. *"Processed 1 file(s). 42 chunks added"*)
+4. Type a question about your documents and press **Enter** or click **Send**
+5. The assistant answers with source citations below each response
 
-> **Note:** The vector store clears every time the backend restarts. Re-upload your files after restarting the server.
+> **Note:** The vector store clears on every backend restart. Re-upload your files after restarting.
 
 ---
 
@@ -153,8 +175,14 @@ chat-with-docs/
 │   ├── src/
 │   │   ├── App.vue       # Main chat UI component
 │   │   └── style.css     # Global styles
+│   ├── Dockerfile        # Frontend container (Node 22 + Nginx)
 │   └── package.json
+├── screenshots/
+│   └── ui.png
 ├── tests/
+├── Dockerfile            # Backend container (Python 3.12)
+├── docker-compose.yml    # Orchestrates all 3 services
+├── .dockerignore
 ├── .gitignore
 ├── requirements.txt
 └── README.md
@@ -164,13 +192,13 @@ chat-with-docs/
 
 ## 🔌 API Endpoints
 
-| Method | Endpoint      | Description                              |
-|--------|---------------|------------------------------------------|
-| POST   | `/api/query`  | Ask a question — `{"question": "string"}` |
-| POST   | `/api/upload` | Upload files for indexing (`multipart/form-data`) |
-| GET    | `/api/health` | Health check — returns `{"status": "ok"}` |
+| Method | Endpoint       | Description                               |
+|--------|----------------|-------------------------------------------|
+| POST   | `/api/query`   | Ask a question — `{"question": "string"}` |
+| POST   | `/api/upload`  | Upload files (`multipart/form-data`)      |
+| GET    | `/api/health`  | Health check — `{"status": "ok"}`         |
 
-Interactive API docs available at **http://localhost:8000/docs**
+Interactive API docs: **http://localhost:8000/docs**
 
 ---
 
@@ -184,6 +212,7 @@ LLM_MODEL     = "llama3.1:8b"         # Ollama model name
 CHUNK_SIZE    = 800                    # Characters per chunk
 CHUNK_OVERLAP = 150                    # Overlap between chunks
 TOP_K         = 4                      # Chunks retrieved per question
+OLLAMA_URL    = os.getenv("OLLAMA_URL", "http://localhost:11434")
 ```
 
 Swap `LLM_MODEL` to any model supported by Ollama (e.g. `mistral:7b`, `llama3.2:3b`).
@@ -201,11 +230,14 @@ Swap `LLM_MODEL` to any model supported by Ollama (e.g. `mistral:7b`, `llama3.2:
 - [x] "I don't know" guardrail — model abstains when answer isn't in context
 - [x] FastAPI backend with query and upload endpoints
 - [x] Vue 3 frontend with dark theme chat UI
-- [x] Live file upload — documents indexed at runtime, no static folder needed
+- [x] Live file upload — documents indexed at runtime
 - [x] Multi-file upload support
+- [x] Docker + Docker Compose — one-command setup
+- [x] NVIDIA GPU passthrough for Ollama in Docker
+- [ ] Multiple file upload (up to 5 files simultaneously)
+- [ ] Uploaded files panel showing filenames with thumbnails
 - [ ] Answer faithfulness evaluation script
 - [ ] Streaming responses (token-by-token)
-- [ ] Docker + docker-compose for one-command setup
 
 ---
 
@@ -214,16 +246,18 @@ Swap `LLM_MODEL` to any model supported by Ollama (e.g. `mistral:7b`, `llama3.2:
 - How RAG works end-to-end — from chunking strategy to prompt design
 - Why embedding normalisation matters for cosine similarity search
 - How vector databases differ from traditional databases
-- Designing a "responsible AI" guardrail that prevents hallucination
+- Designing a responsible AI guardrail that prevents hallucination
 - Connecting a FastAPI backend to a Vue 3 frontend with CORS
 - Handling multipart file uploads in FastAPI with `python-multipart`
+- Multi-container Docker setup with service networking and named volumes
+- GPU passthrough to Docker containers using NVIDIA Container Toolkit
 
 ---
 
 ## 📝 Known Limitations
 
 - Vector store clears on server restart (persistence across sessions is a planned improvement)
-- Large PDFs with complex layouts (columns, tables) may have lower retrieval accuracy due to pypdf text extraction order
+- Large PDFs with complex layouts may have lower retrieval accuracy due to pypdf text extraction
 - No authentication — intended for local use only
 
 ---
