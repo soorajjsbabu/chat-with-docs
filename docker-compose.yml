@@ -1,0 +1,45 @@
+services:
+
+  # Service 1 — Ollama (LLM server)
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama  # persists downloaded models
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Service 2 — FastAPI backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_URL=http://ollama:11434  # talks to ollama service
+    depends_on:
+      - ollama    # waits for ollama to start first
+    restart: unless-stopped
+
+  # Service 3 — Vue frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"   # maps container port 80 to your localhost:5173
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+# Named volume so Ollama models persist between restarts
+volumes:
+  ollama_data:
