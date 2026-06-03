@@ -236,7 +236,7 @@ Swap `LLM_MODEL` to any model supported by Ollama (e.g. `mistral:7b`, `llama3.2:
 - [x] Docker + Docker Compose — one-command setup
 - [x] NVIDIA GPU passthrough for Ollama in Docker
 - [x] Answer faithfulness evaluation script
-- [ ] Streaming responses (token-by-token)
+- [x] Streaming responses (token-by-token)
 - [ ] Uploaded files panel showing filenames with thumbnails
 - [ ] Multiple file upload (up to 5 files simultaneously)
 
