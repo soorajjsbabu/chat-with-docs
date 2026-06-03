@@ -12,6 +12,8 @@ Retrieval-Augmented Generation process:
 
 from typing import List, Dict, Any, Optional
 
+import json
+
 import requests
 
 from . import config
@@ -160,3 +162,80 @@ class RAG:
         answer_text = data.get("response", "").strip()
 
         return {"answer": answer_text, "sources": sources}
+
+    def stream_answer(self, question: str, debug: bool = False):
+        """Answer a question using retrieved context, yielding tokens.
+
+        Returns:
+            A tuple of (sources, generator) where ``sources`` is a list of
+            deduplicated filenames and ``generator`` yields token strings.
+        """
+        # ------------------------------------------------------------------
+        # STAGE 1: RETRIEVE
+        # ------------------------------------------------------------------
+        query_embedding = self._embedder.embed([question])[0]
+        results = self._store.query(query_embedding, top_k=config.TOP_K)
+
+        chunks: List[str] = results.get("documents", [[]])[0] or []
+        metadatas: List[Dict[str, Any]] = results.get("metadatas", [[]])[0] or []
+
+        sources = []
+        seen = set()
+        for meta in metadatas:
+            src = meta.get("source", "unknown")
+            if src not in seen:
+                seen.add(src)
+                sources.append(src)
+
+        if debug:
+            print("\n--- Retrieved Chunks ---")
+            for i, (doc, meta) in enumerate(zip(chunks, metadatas)):
+                print(f"\nChunk {i+1} [{meta['source']}]:\n{doc[:300]}")
+            print("--- End Chunks ---\n")
+
+        # ------------------------------------------------------------------
+        # STAGE 2: GENERATE (streaming)
+        # ------------------------------------------------------------------
+        context = "\n\n---\n\n".join(chunks)
+        if not context:
+            def _empty_generator():
+                yield "I don't know – no documents have been indexed yet."
+            return sources, _empty_generator()
+
+        prompt = (
+            "You are a helpful assistant. Use ONLY the context below to answer "
+            "the question. If the answer is not contained in the context, "
+            'reply exactly "I don\'t know". Do not make up information.\n\n'
+            f"Context:\n{context}\n\n"
+            f"Question: {question}\n\n"
+            "Answer:"
+        )
+
+        response = requests.post(
+            f"{config.OLLAMA_URL}/api/generate",
+            json={
+                "model": config.LLM_MODEL,
+                "prompt": prompt,
+                "stream": True,
+                "options": {"temperature": config.TEMPERATURE},
+            },
+            stream=True,
+            timeout=120,
+        )
+        response.raise_for_status()
+
+        def _token_generator():
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if data.get("done"):
+                    break
+                token = data.get("response", "")
+                if token:
+                    yield token
+
+        return sources, _token_generator()

@@ -1,8 +1,10 @@
+import json
 from contextlib import asynccontextmanager
 from typing import List
 
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from src.loader import load_document_from_bytes
@@ -58,6 +60,23 @@ async def query(request: QueryRequest) -> QueryResponse:
         answer=result["answer"],
         sources=result["sources"],
     )
+
+
+@app.post("/api/query/stream")
+async def query_stream(request: QueryRequest):
+    sources, token_generator = rag.stream_answer(request.question)
+
+    def _format_sse(data: str) -> str:
+        lines = data.split("\n")
+        return "".join(f"data: {line}\n" for line in lines) + "\n"
+
+    def event_generator():
+        yield _format_sse(json.dumps({"sources": sources}))
+        for token in token_generator:
+            yield _format_sse(token)
+        yield _format_sse("[DONE]")
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @app.post("/api/upload", response_model=UploadResponse)

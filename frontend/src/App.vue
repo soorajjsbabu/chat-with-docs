@@ -66,8 +66,15 @@ async function sendMessage() {
   loading.value = true
   scrollToBottom()
 
+  // Add empty assistant message for streaming
+  messages.value.push({
+    role: 'assistant',
+    content: '',
+    sources: []
+  })
+
   try {
-    const res = await fetch('http://localhost:8000/api/query', {
+    const res = await fetch('http://localhost:8000/api/query/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ question })
@@ -77,20 +84,46 @@ async function sendMessage() {
       throw new Error(`HTTP error! status: ${res.status}`)
     }
 
-    const data = await res.json()
-    messages.value.push({
-      role: 'assistant',
-      content: data.answer || 'No answer received.',
-      sources: data.sources || []
-    })
-  } catch (err) {
-    messages.value.push({
-      role: 'assistant',
-      content: `Error: ${err.message}`,
-      sources: []
-    })
-  } finally {
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+
+      // Process complete SSE events
+      let eventEnd
+      while ((eventEnd = buffer.indexOf('\n\n')) !== -1) {
+        const event = buffer.slice(0, eventEnd)
+        buffer = buffer.slice(eventEnd + 2)
+
+        const dataLines = event.split('\n').filter(l => l.startsWith('data: '))
+        const data = dataLines.map(l => l.slice(6)).join('\n')
+
+        if (data === '[DONE]') {
+          loading.value = false
+        } else {
+          try {
+            const parsed = JSON.parse(data)
+            if (parsed.sources) {
+              messages.value[messages.value.length - 1].sources = parsed.sources
+            }
+          } catch {
+            // It's a token chunk
+            messages.value[messages.value.length - 1].content += data
+          }
+        }
+      }
+    }
+
+    // Ensure loading is reset if stream ends without [DONE]
     loading.value = false
+  } catch (err) {
+    messages.value[messages.value.length - 1].content = `Error: ${err.message}`
+    loading.value = false
+  } finally {
     scrollToBottom()
     nextTick(() => {
       inputRef.value?.focus()
@@ -131,18 +164,16 @@ watch(loading, scrollToBottom)
         :class="msg.role"
       >
         <div class="bubble">
-          <p class="content">{{ msg.content }}</p>
+          <p class="content">
+            {{ msg.content }}
+            <span
+              v-if="loading && index === messages.length - 1 && msg.role === 'assistant'"
+              class="cursor"
+            >|</span>
+          </p>
           <p v-if="msg.role === 'assistant' && msg.sources.length" class="sources">
             Sources: {{ msg.sources.join(', ') }}
           </p>
-        </div>
-      </div>
-
-      <div v-if="loading" class="message-row assistant">
-        <div class="bubble loading-bubble">
-          <span class="dot"></span>
-          <span class="dot"></span>
-          <span class="dot"></span>
         </div>
       </div>
     </main>
@@ -184,6 +215,7 @@ watch(loading, scrollToBottom)
         type="text"
         placeholder="Ask a question..."
         class="input"
+        :disabled="loading"
         @keydown="handleKeydown"
       />
       <button
@@ -285,37 +317,20 @@ html, body, #app {
   color: #8b949e;
 }
 
-/* Loading dots */
-.loading-bubble {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 1rem 1.25rem;
-}
-
-.dot {
+/* Blinking cursor for streaming */
+.cursor {
+  display: inline-block;
   width: 0.5rem;
-  height: 0.5rem;
-  background-color: #8b949e;
-  border-radius: 50%;
-  animation: bounce 1.4s infinite ease-in-out both;
+  background-color: #c9d1d9;
+  color: transparent;
+  animation: blink 1s step-end infinite;
+  margin-left: 0.1rem;
+  border-radius: 0.1rem;
 }
 
-.dot:nth-child(1) {
-  animation-delay: -0.32s;
-}
-
-.dot:nth-child(2) {
-  animation-delay: -0.16s;
-}
-
-@keyframes bounce {
-  0%, 80%, 100% {
-    transform: scale(0);
-  }
-  40% {
-    transform: scale(1);
-  }
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 /* Input bar */
@@ -346,6 +361,11 @@ html, body, #app {
 
 .input:focus {
   border-color: #1f6feb;
+}
+
+.input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .send-btn {
