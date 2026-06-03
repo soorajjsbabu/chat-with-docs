@@ -12,9 +12,23 @@ const uploading = ref(false)
 const uploadStatus = ref('')
 const fileInput = ref(null)
 
+const uploadedFiles = ref([])
+
 function onFileChange(e) {
-  selectedFiles.value = Array.from(e.target.files)
+  const newFiles = Array.from(e.target.files)
+  const combined = [...selectedFiles.value, ...newFiles]
+  if (combined.length > 5) {
+    uploadStatus.value = 'Maximum 5 files allowed at once'
+    e.target.value = ''
+    return
+  }
+  selectedFiles.value = combined
   uploadStatus.value = ''
+  e.target.value = ''
+}
+
+function removeSelectedFile(index) {
+  selectedFiles.value = selectedFiles.value.filter((_, i) => i !== index)
 }
 
 function triggerFileInput() {
@@ -44,6 +58,7 @@ async function uploadFiles() {
 
     const data = await res.json()
     uploadStatus.value = `${data.message} (${data.chunks_added} chunks added)`
+    uploadedFiles.value.push(...data.files)
     selectedFiles.value = []
   } catch (err) {
     uploadStatus.value = `Upload failed: ${err.message}`
@@ -178,33 +193,52 @@ watch(loading, scrollToBottom)
       </div>
     </main>
 
-    <div class="upload-bar">
-      <input
-        ref="fileInput"
-        type="file"
-        multiple
-        accept=".pdf,.txt,.md"
-        class="hidden-input"
-        @change="onFileChange"
-      />
-      <button class="upload-btn" @click="triggerFileInput">
-        Choose Files
-      </button>
-      <div class="file-list">
-        <span v-for="file in selectedFiles" :key="file.name" class="file-tag">
+    <div v-if="uploadedFiles.length" class="indexed-panel">
+      <h3 class="panel-title">Indexed Documents</h3>
+      <div class="indexed-grid">
+        <div
+          v-for="(name, idx) in uploadedFiles"
+          :key="name + '-' + idx"
+          class="indexed-card"
+        >
+          <span class="doc-icon">&#128196;</span>
+          <span class="doc-name">{{ name }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="upload-section">
+      <div v-if="selectedFiles.length" class="selected-files">
+        <span
+          v-for="(file, idx) in selectedFiles"
+          :key="file.name + '-' + idx"
+          class="file-chip"
+        >
           {{ file.name }}
-        </span>
-        <span v-if="!selectedFiles.length" class="file-placeholder">
-          No files selected
+          <button class="chip-remove" @click="removeSelectedFile(idx)">&#10005;</button>
         </span>
       </div>
-      <button
-        :disabled="!selectedFiles.length || uploading"
-        class="send-btn"
-        @click="uploadFiles"
-      >
-        {{ uploading ? 'Uploading...' : 'Upload' }}
-      </button>
+
+      <div class="upload-bar">
+        <input
+          ref="fileInput"
+          type="file"
+          multiple
+          accept=".pdf,.txt,.md"
+          class="hidden-input"
+          @change="onFileChange"
+        />
+        <button class="upload-btn" @click="triggerFileInput">
+          Choose Files
+        </button>
+        <button
+          :disabled="!selectedFiles.length || uploading"
+          class="send-btn"
+          @click="uploadFiles"
+        >
+          {{ uploading ? 'Uploading...' : 'Upload' }}
+        </button>
+      </div>
       <p v-if="uploadStatus" class="upload-status">{{ uploadStatus }}</p>
     </div>
 
@@ -333,6 +367,129 @@ html, body, #app {
   50% { opacity: 0; }
 }
 
+/* Indexed Documents panel */
+.indexed-panel {
+  flex-shrink: 0;
+  padding: 0.75rem 1.5rem;
+  background-color: #0d1117;
+  border-top: 1px solid #30363d;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.panel-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #8b949e;
+}
+
+.indexed-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.indexed-card {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background-color: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  color: #c9d1d9;
+}
+
+.doc-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.doc-name {
+  white-space: nowrap;
+}
+
+/* Upload section */
+.upload-section {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background-color: #0d1117;
+  border-top: 1px solid #30363d;
+}
+
+.selected-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  background-color: #21262d;
+  border: 1px solid #30363d;
+  border-radius: 0.375rem;
+  font-size: 0.8rem;
+  color: #c9d1d9;
+}
+
+.chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  font-size: 0.7rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.chip-remove:hover {
+  color: #f85149;
+}
+
+.upload-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.hidden-input {
+  display: none;
+}
+
+.upload-btn {
+  padding: 0.5rem 1rem;
+  background-color: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.upload-btn:hover {
+  background-color: #30363d;
+}
+
+.upload-status {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #8b949e;
+}
+
 /* Input bar */
 .input-bar {
   flex-shrink: 0;
@@ -388,64 +545,5 @@ html, body, #app {
   background-color: #21262d;
   color: #484f58;
   cursor: not-allowed;
-}
-
-/* Upload bar */
-.upload-bar {
-  flex-shrink: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  background-color: #0d1117;
-  border-top: 1px solid #30363d;
-}
-
-.hidden-input {
-  display: none;
-}
-
-.upload-btn {
-  padding: 0.5rem 1rem;
-  background-color: #21262d;
-  color: #c9d1d9;
-  border: 1px solid #30363d;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.upload-btn:hover {
-  background-color: #30363d;
-}
-
-.file-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  flex: 1;
-  align-items: center;
-}
-
-.file-tag {
-  padding: 0.25rem 0.5rem;
-  background-color: #1f6feb;
-  color: #ffffff;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
-}
-
-.file-placeholder {
-  font-size: 0.875rem;
-  color: #484f58;
-}
-
-.upload-status {
-  width: 100%;
-  margin: 0;
-  font-size: 0.75rem;
-  color: #8b949e;
 }
 </style>
