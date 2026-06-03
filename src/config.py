@@ -9,3 +9,4 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")  # Base URL for t
 CHUNK_SIZE = 1200                                               # Maximum number of characters per document chunk for embedding
 CHUNK_OVERLAP = 200                                             # Number of characters to overlap between consecutive chunks for context continuity
 TOP_K = 6                                                       # Number of top similar chunks to retrieve from the vector store for each query
+TEMPERATURE = 0.1                                               # Controls response randomness (0.0 = deterministic, 1.0 = creative); low value reduces hallucination in RAG    

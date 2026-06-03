@@ -147,6 +147,9 @@ class RAG:
                 "model": config.LLM_MODEL,
                 "prompt": prompt,
                 "stream": False,
+                "options": {
+                    "temperature": config.TEMPERATURE
+                },
             },
             timeout=120,
         )
