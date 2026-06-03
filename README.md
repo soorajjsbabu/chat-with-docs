@@ -4,7 +4,7 @@ A full-stack RAG (Retrieval-Augmented Generation) app that lets you upload your 
 
 Built with Python, SentenceTransformers, ChromaDB, Ollama, FastAPI, and Vue.js. Runs fully locally — no OpenAI API key, no cloud costs. One-command setup with Docker.
 
-![Chat With Your Docs UI](./screenshots/ui.png)
+![Chat With Your Docs UI](./screenshots/UI.png)
 
 ---
 
@@ -148,10 +148,11 @@ Open **http://localhost:5173**
 ## 📖 How to Use
 
 1. Open **http://localhost:5173**
-2. Click **Choose Files** and select one or more PDF, TXT, or MD files
+2. Click **Choose Files** and select a PDF, TXT, or MD file
 3. Click **Upload** and wait for the confirmation (e.g. *"Processed 1 file(s). 42 chunks added"*)
-4. Type a question about your documents and press **Enter** or click **Send**
-5. The assistant answers with source citations below each response
+4. Repeat steps 2–3 to upload additional documents one at a time
+5. Type a question about your documents and press **Enter** or click **Send**
+6. The assistant answers with source citations below each response
 
 > **Note:** The vector store clears on every backend restart. Re-upload your files after restarting.
 
@@ -207,11 +208,11 @@ Interactive API docs: **http://localhost:8000/docs**
 All settings are in `src/config.py`:
 
 ```python
-EMBED_MODEL   = "all-MiniLM-L6-v2"   # SentenceTransformers model
-LLM_MODEL     = "llama3.1:8b"         # Ollama model name
-CHUNK_SIZE    = 800                    # Characters per chunk
-CHUNK_OVERLAP = 150                    # Overlap between chunks
-TOP_K         = 4                      # Chunks retrieved per question
+EMBED_MODEL   = "all-MiniLM-L6-v2"      # SentenceTransformers model
+LLM_MODEL     = "llama3.1:8b"           # Ollama model name
+CHUNK_SIZE    = 1200                    # Characters per chunk
+CHUNK_OVERLAP = 200                     # Overlap between chunks
+TOP_K         = 6                       # Chunks retrieved per question
 OLLAMA_URL    = os.getenv("OLLAMA_URL", "http://localhost:11434")
 ```
 
