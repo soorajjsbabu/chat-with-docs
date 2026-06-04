@@ -196,7 +196,7 @@ chat-with-docs/
 | Method | Endpoint             | Description                                       |
 |--------|----------------------|---------------------------------------------------|
 | POST   | `/api/query`         | Ask a question — `{"question": "string"}`         |
-| POST   | `/api/query/stream`  | Stream answer token-by-token (text/event-stream)  |
+| POST   | `/api/query/stream`  | Stream answer token-by-token (`text/event-stream`)  |
 | POST   | `/api/upload`        | Upload files (`multipart/form-data`)              |
 | GET    | `/api/health`        | Health check — `{"status": "ok"}`                 |
 
