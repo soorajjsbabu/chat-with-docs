@@ -43,6 +43,21 @@ def _load_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _load_docx(path: Path) -> str:
+    """Extract text from a .docx file using python-docx.
+
+    Args:
+        path: Path to the .docx file.
+
+    Returns:
+        The extracted text joined from all paragraphs.
+    """
+    from docx import Document
+
+    doc = Document(str(path))
+    return "\n".join(p.text for p in doc.paragraphs)
+
+
 def _load_pdf_from_bytes(content: bytes) -> str:
     """Extract text from PDF bytes."""
     from pypdf import PdfReader
@@ -54,6 +69,14 @@ def _load_pdf_from_bytes(content: bytes) -> str:
         if page_text:
             text_parts.append(page_text)
     return "\n".join(text_parts)
+
+
+def _load_docx_from_bytes(content: bytes) -> str:
+    """Extract text from .docx bytes."""
+    from docx import Document
+
+    doc = Document(BytesIO(content))
+    return "\n".join(p.text for p in doc.paragraphs)
 
 
 def load_document_from_bytes(content: bytes, filename: str) -> Optional[Dict[str, str]]:
@@ -71,6 +94,10 @@ def load_document_from_bytes(content: bytes, filename: str) -> Optional[Dict[str
         text = _load_pdf_from_bytes(content)
     elif suffix in (".txt", ".md"):
         text = content.decode("utf-8")
+    elif suffix == ".docx":
+        text = _load_docx_from_bytes(content)
+    elif suffix == ".doc":
+        raise ValueError(".doc format is not supported, please convert to .docx")
     else:
         return None
 
@@ -83,7 +110,7 @@ def load_document_from_bytes(content: bytes, filename: str) -> Optional[Dict[str
 def load_documents(folder: Path) -> List[Dict[str, str]]:
     """Load all supported documents from a folder.
 
-    Iterates over the directory, reads each supported file (.pdf, .txt, .md),
+    Iterates over the directory, reads each supported file (.pdf, .txt, .md, .docx),
     and collects them into a list of dictionaries. Files with no extractable
     text are skipped.
 
@@ -106,6 +133,10 @@ def load_documents(folder: Path) -> List[Dict[str, str]]:
             text = _load_pdf(file_path)
         elif suffix in (".txt", ".md"):
             text = _load_text(file_path)
+        elif suffix == ".docx":
+            text = _load_docx(file_path)
+        elif suffix == ".doc":
+            raise ValueError(".doc format is not supported, please convert to .docx")
         else:
             # Skip unsupported file types
             continue

@@ -224,7 +224,7 @@ watch(loading, scrollToBottom)
           ref="fileInput"
           type="file"
           multiple
-          accept=".pdf,.txt,.md"
+          accept=".pdf,.txt,.md,.docx,"
           class="hidden-input"
           @change="onFileChange"
         />
