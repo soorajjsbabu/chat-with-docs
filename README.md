@@ -15,7 +15,7 @@ RAG = **Retrieval-Augmented Generation**. Instead of asking an LLM a question bl
 The pipeline runs in six stages:
 
 ```
-1. LOAD      → parse uploaded PDF / TXT / DOCX / MD files from memory
+1. LOAD      → parse uploaded PDF / TXT / DOCX/MD files from memory
 2. CHUNK     → split documents into overlapping passages
 3. EMBED     → convert each chunk into a vector (SentenceTransformers)
 4. STORE     → persist vectors in a local vector database (ChromaDB)
@@ -193,11 +193,12 @@ chat-with-docs/
 
 ## 🔌 API Endpoints
 
-| Method | Endpoint       | Description                               |
-|--------|----------------|-------------------------------------------|
-| POST   | `/api/query`   | Ask a question — `{"question": "string"}` |
-| POST   | `/api/upload`  | Upload files (`multipart/form-data`)      |
-| GET    | `/api/health`  | Health check — `{"status": "ok"}`         |
+| Method | Endpoint             | Description                                       |
+|--------|----------------------|---------------------------------------------------|
+| POST   | `/api/query`         | Ask a question — `{"question": "string"}`         |
+| POST   | `/api/query/stream`  | Stream answer token-by-token (text/event-stream)  |
+| POST   | `/api/upload`        | Upload files (`multipart/form-data`)              |
+| GET    | `/api/health`        | Health check — `{"status": "ok"}`                 |
 
 Interactive API docs: **http://localhost:8000/docs**
 
@@ -252,6 +253,8 @@ Swap `LLM_MODEL` to any model supported by Ollama (e.g. `mistral:7b`, `llama3.2:
 - Handling multipart file uploads in FastAPI with `python-multipart`
 - Multi-container Docker setup with service networking and named volumes
 - GPU passthrough to Docker containers using NVIDIA Container Toolkit
+- Building a RAG evaluation framework to measure retrieval accuracy, answer faithfulness and abstention rate across multiple documents
+- Implementing token-by-token streaming with server-sent events connecting FastAPI StreamingResponse to Vue's ReadableStream API
 
 ---
 
