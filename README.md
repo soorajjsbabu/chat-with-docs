@@ -15,7 +15,7 @@ RAG = **Retrieval-Augmented Generation**. Instead of asking an LLM a question bl
 The pipeline runs in six stages:
 
 ```
-1. LOAD      → parse uploaded PDF / TXT / MD files from memory
+1. LOAD      → parse uploaded PDF / TXT / DOCX / MD files from memory
 2. CHUNK     → split documents into overlapping passages
 3. EMBED     → convert each chunk into a vector (SentenceTransformers)
 4. STORE     → persist vectors in a local vector database (ChromaDB)
@@ -148,7 +148,7 @@ Open **http://localhost:5173**
 ## 📖 How to Use
 
 1. Open **http://localhost:5173**
-2. Click **Choose Files** and select a PDF, TXT, or MD file
+2. Click **Choose Files** and select a PDF, TXT, DOCX or MD file
 3. Click **Upload** and wait for the confirmation (e.g. *"Processed 1 file(s). 42 chunks added"*)
 4. Repeat steps 2–3 to upload additional documents one at a time
 5. Type a question about your documents and press **Enter** or click **Send**
@@ -223,7 +223,7 @@ Swap `LLM_MODEL` to any model supported by Ollama (e.g. `mistral:7b`, `llama3.2:
 ## 🗺️ Roadmap
 
 - [x] Project setup and environment configuration
-- [x] Document loader — PDF, TXT, MD support
+- [x] Document loader — PDF, TXT, MD, DOCX support
 - [x] Text chunker with configurable overlap
 - [x] SentenceTransformers embedder with GPU support
 - [x] ChromaDB vector store with persistence
