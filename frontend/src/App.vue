@@ -6,13 +6,25 @@ const input = ref('')
 const loading = ref(false)
 const chatContainer = ref(null)
 const inputRef = ref(null)
+const bottomAnchor = ref(null)
 
 const selectedFiles = ref([])
 const uploading = ref(false)
 const uploadStatus = ref('')
 const fileInput = ref(null)
+const isDragOver = ref(false)
+const modalOpen = ref(false)
 
 const uploadedFiles = ref([])
+
+function openModal() {
+  modalOpen.value = true
+}
+
+function closeModal() {
+  modalOpen.value = false
+  uploadStatus.value = ''
+}
 
 function onFileChange(e) {
   const newFiles = Array.from(e.target.files)
@@ -33,6 +45,28 @@ function removeSelectedFile(index) {
 
 function triggerFileInput() {
   fileInput.value?.click()
+}
+
+function onDragOver(e) {
+  e.preventDefault()
+  isDragOver.value = true
+}
+
+function onDragLeave() {
+  isDragOver.value = false
+}
+
+function onDrop(e) {
+  e.preventDefault()
+  isDragOver.value = false
+  const newFiles = Array.from(e.dataTransfer.files)
+  const combined = [...selectedFiles.value, ...newFiles]
+  if (combined.length > 5) {
+    uploadStatus.value = 'Maximum 5 files allowed at once'
+    return
+  }
+  selectedFiles.value = combined
+  uploadStatus.value = ''
 }
 
 async function uploadFiles() {
@@ -57,9 +91,13 @@ async function uploadFiles() {
     }
 
     const data = await res.json()
-    uploadStatus.value = `${data.message} (${data.chunks_added} chunks added)`
+    uploadStatus.value = `Processed ${data.files.length} file(s). ${data.chunks_added} chunks added`
     uploadedFiles.value.push(...data.files)
     selectedFiles.value = []
+
+    setTimeout(() => {
+      closeModal()
+    }, 2000)
   } catch (err) {
     uploadStatus.value = `Upload failed: ${err.message}`
   } finally {
@@ -71,7 +109,6 @@ async function sendMessage() {
   const question = input.value.trim()
   if (!question || loading.value) return
 
-  // Add user message
   messages.value.push({
     role: 'user',
     content: question,
@@ -81,7 +118,6 @@ async function sendMessage() {
   loading.value = true
   scrollToBottom()
 
-  // Add empty assistant message for streaming
   messages.value.push({
     role: 'assistant',
     content: '',
@@ -108,7 +144,6 @@ async function sendMessage() {
       if (done) break
       buffer += decoder.decode(value, { stream: true })
 
-      // Process complete SSE events
       let eventEnd
       while ((eventEnd = buffer.indexOf('\n\n')) !== -1) {
         const event = buffer.slice(0, eventEnd)
@@ -126,14 +161,12 @@ async function sendMessage() {
               messages.value[messages.value.length - 1].sources = parsed.sources
             }
           } catch {
-            // It's a token chunk
             messages.value[messages.value.length - 1].content += data
           }
         }
       }
     }
 
-    // Ensure loading is reset if stream ends without [DONE]
     loading.value = false
   } catch (err) {
     messages.value[messages.value.length - 1].content = `Error: ${err.message}`
@@ -155,9 +188,7 @@ function handleKeydown(e) {
 
 function scrollToBottom() {
   nextTick(() => {
-    if (chatContainer.value) {
-      chatContainer.value.scrollTop = chatContainer.value.scrollHeight
-    }
+    bottomAnchor.value?.scrollIntoView({ behavior: 'smooth' })
   })
 }
 
@@ -167,30 +198,49 @@ watch(loading, scrollToBottom)
 
 <template>
   <div class="app">
-    <header class="header">
-      <h1>Chat with your Docs</h1>
-    </header>
+    <transition name="header">
+      <header v-if="messages.length" class="small-header">
+        <h1>Chat With Your Documents</h1>
+      </header>
+    </transition>
 
     <main ref="chatContainer" class="chat">
-      <div
-        v-for="(msg, index) in messages"
-        :key="index"
-        class="message-row"
-        :class="msg.role"
-      >
-        <div class="bubble">
-          <p class="content">
-            {{ msg.content }}
-            <span
-              v-if="loading && index === messages.length - 1 && msg.role === 'assistant'"
-              class="cursor"
-            >|</span>
-          </p>
-          <p v-if="msg.role === 'assistant' && msg.sources.length" class="sources">
-            Sources: {{ msg.sources.join(', ') }}
-          </p>
-        </div>
+      <div v-if="!messages.length" class="welcome">
+        <h2 class="welcome-title">Chat With Your Documents</h2>
+        <p class="welcome-desc">Upload a document and ask anything about it</p>
       </div>
+
+      <template v-else>
+        <div
+          v-for="(msg, index) in messages"
+          :key="index"
+          class="message-row"
+          :class="msg.role"
+        >
+          <div class="bubble">
+            <p v-if="msg.content" class="content">
+              {{ msg.content }}
+              <span
+                v-if="loading && index === messages.length - 1 && msg.role === 'assistant'"
+                class="cursor"
+              >|</span>
+            </p>
+            <div
+              v-else-if="loading && index === messages.length - 1 && msg.role === 'assistant'"
+              class="typing-indicator"
+            >
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <p v-else class="content"></p>
+            <p v-if="msg.role === 'assistant' && msg.sources.length" class="sources">
+              Sources: {{ msg.sources.join(', ') }}
+            </p>
+          </div>
+        </div>
+        <div ref="bottomAnchor" class="bottom-anchor"></div>
+      </template>
     </main>
 
     <div v-if="uploadedFiles.length" class="indexed-panel">
@@ -207,42 +257,16 @@ watch(loading, scrollToBottom)
       </div>
     </div>
 
-    <div class="upload-section">
-      <div v-if="selectedFiles.length" class="selected-files">
-        <span
-          v-for="(file, idx) in selectedFiles"
-          :key="file.name + '-' + idx"
-          class="file-chip"
-        >
-          {{ file.name }}
-          <button class="chip-remove" @click="removeSelectedFile(idx)">&#10005;</button>
-        </span>
-      </div>
-
-      <div class="upload-bar">
-        <input
-          ref="fileInput"
-          type="file"
-          multiple
-          accept=".pdf,.txt,.md,.docx,"
-          class="hidden-input"
-          @change="onFileChange"
-        />
-        <button class="upload-btn" @click="triggerFileInput">
-          Choose Files
-        </button>
-        <button
-          :disabled="!selectedFiles.length || uploading"
-          class="send-btn"
-          @click="uploadFiles"
-        >
-          {{ uploading ? 'Uploading...' : 'Upload' }}
-        </button>
-      </div>
-      <p v-if="uploadStatus" class="upload-status">{{ uploadStatus }}</p>
-    </div>
-
     <footer class="input-bar">
+      <button
+        class="attach-btn"
+        title="Upload documents"
+        @click="openModal"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+        </svg>
+      </button>
       <input
         ref="inputRef"
         v-model="input"
@@ -260,6 +284,77 @@ watch(loading, scrollToBottom)
         Send
       </button>
     </footer>
+
+    <!-- Upload Modal -->
+    <transition name="modal">
+      <div v-if="modalOpen" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3 class="modal-title">Upload Documents</h3>
+            <button class="modal-close" @click="closeModal">&#10005;</button>
+          </div>
+
+          <div
+            class="modal-drop-zone"
+            :class="{ 'drag-over': isDragOver }"
+            @dragover.prevent="onDragOver"
+            @dragleave="onDragLeave"
+            @drop.prevent="onDrop"
+            @click="triggerFileInput"
+          >
+            <div class="drop-zone-content">
+              <svg
+                class="cloud-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                <polyline points="7 11 12 16 17 11" />
+                <line x1="12" y1="16" x2="12" y2="4" />
+              </svg>
+              <p class="drop-text">Drag and drop files here</p>
+              <button class="choose-btn" @click.stop="triggerFileInput">
+                or Choose Files
+              </button>
+            </div>
+          </div>
+
+          <input
+            ref="fileInput"
+            type="file"
+            multiple
+            accept=".pdf,.txt,.md,.docx,"
+            class="hidden-input"
+            @change="onFileChange"
+          />
+
+          <div v-if="selectedFiles.length" class="modal-selected-files">
+            <span
+              v-for="(file, idx) in selectedFiles"
+              :key="file.name + '-' + idx"
+              class="file-chip"
+            >
+              {{ file.name }}
+              <button class="chip-remove" @click="removeSelectedFile(idx)">&#10005;</button>
+            </span>
+          </div>
+
+          <button
+            :disabled="!selectedFiles.length || uploading"
+            class="send-btn modal-upload-btn"
+            @click="uploadFiles"
+          >
+            {{ uploading ? 'Uploading...' : 'Upload' }}
+          </button>
+
+          <p v-if="uploadStatus" class="modal-status">{{ uploadStatus }}</p>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -278,22 +373,35 @@ html, body, #app {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #1a1a2e 100%);
 }
 
-/* Header */
-.header {
+/* Small header (chat state) */
+.small-header {
   flex-shrink: 0;
-  padding: 1rem 1.5rem;
-  background-color: #161b22;
+  padding: 0.75rem 1.5rem;
+  background-color: rgba(22, 27, 34, 0.6);
+  backdrop-filter: blur(8px);
   border-bottom: 1px solid #30363d;
   text-align: center;
 }
 
-.header h1 {
+.small-header h1 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1rem;
   font-weight: 600;
   color: #e6edf3;
+}
+
+.header-enter-active,
+.header-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.header-enter-from,
+.header-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
 /* Chat area */
@@ -304,6 +412,31 @@ html, body, #app {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+/* Welcome screen */
+.welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.75rem;
+  animation: fadeIn 0.5s ease-out;
+}
+
+.welcome-title {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #e6edf3;
+}
+
+.welcome-desc {
+  margin: 0;
+  font-size: 1rem;
+  color: #8b949e;
 }
 
 /* Message rows */
@@ -327,6 +460,7 @@ html, body, #app {
   border-radius: 1rem;
   line-height: 1.5;
   word-wrap: break-word;
+  animation: fadeIn 0.35s ease-out;
 }
 
 .user .bubble {
@@ -336,7 +470,7 @@ html, body, #app {
 }
 
 .assistant .bubble {
-  background-color: #21262d;
+  background-color: rgba(33, 38, 45, 0.9);
   color: #c9d1d9;
   border-bottom-left-radius: 0.25rem;
 }
@@ -367,11 +501,44 @@ html, body, #app {
   50% { opacity: 0; }
 }
 
+/* Typing indicator */
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0;
+}
+
+.typing-indicator span {
+  width: 0.5rem;
+  height: 0.5rem;
+  background-color: #8b949e;
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.typing-indicator span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-6px);
+  }
+}
+
 /* Indexed Documents panel */
 .indexed-panel {
   flex-shrink: 0;
   padding: 0.75rem 1.5rem;
-  background-color: #0d1117;
+  background-color: rgba(13, 17, 23, 0.5);
   border-top: 1px solid #30363d;
   max-height: 140px;
   overflow-y: auto;
@@ -395,7 +562,7 @@ html, body, #app {
   align-items: center;
   gap: 0.5rem;
   padding: 0.4rem 0.75rem;
-  background-color: #161b22;
+  background-color: rgba(22, 27, 34, 0.8);
   border: 1px solid #30363d;
   border-radius: 0.5rem;
   font-size: 0.875rem;
@@ -411,99 +578,44 @@ html, body, #app {
   white-space: nowrap;
 }
 
-/* Upload section */
-.upload-section {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  background-color: #0d1117;
-  border-top: 1px solid #30363d;
-}
-
-.selected-files {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.file-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.3rem 0.6rem;
-  background-color: #21262d;
-  border: 1px solid #30363d;
-  border-radius: 0.375rem;
-  font-size: 0.8rem;
-  color: #c9d1d9;
-}
-
-.chip-remove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1rem;
-  height: 1rem;
-  padding: 0;
-  background: transparent;
-  border: none;
-  color: #8b949e;
-  font-size: 0.7rem;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.chip-remove:hover {
-  color: #f85149;
-}
-
-.upload-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.hidden-input {
-  display: none;
-}
-
-.upload-btn {
-  padding: 0.5rem 1rem;
-  background-color: #21262d;
-  color: #c9d1d9;
-  border: 1px solid #30363d;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.upload-btn:hover {
-  background-color: #30363d;
-}
-
-.upload-status {
-  margin: 0;
-  font-size: 0.75rem;
-  color: #8b949e;
-}
-
 /* Input bar */
 .input-bar {
   flex-shrink: 0;
   display: flex;
+  align-items: center;
   gap: 0.75rem;
   padding: 1rem 1.5rem;
-  background-color: #161b22;
+  background-color: rgba(22, 27, 34, 0.6);
+  backdrop-filter: blur(8px);
   border-top: 1px solid #30363d;
+}
+
+.attach-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  background-color: rgba(13, 17, 23, 0.6);
+  border: 1px solid #30363d;
+  border-radius: 0.5rem;
+  color: #8b949e;
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+  flex-shrink: 0;
+}
+
+.attach-btn:hover {
+  background-color: #30363d;
+  color: #c9d1d9;
 }
 
 .input {
   flex: 1;
   padding: 0.75rem 1rem;
-  background-color: #0d1117;
+  background-color: rgba(13, 17, 23, 0.6);
   border: 1px solid #30363d;
   border-radius: 0.5rem;
   color: #c9d1d9;
@@ -545,5 +657,204 @@ html, body, #app {
   background-color: #21262d;
   color: #484f58;
   cursor: not-allowed;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-active .modal-card,
+.modal-leave-active .modal-card {
+  transition: transform 0.25s ease;
+}
+
+.modal-enter-from .modal-card,
+.modal-leave-to .modal-card {
+  transform: scale(0.96);
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 28rem;
+  margin: 1rem;
+  padding: 1.5rem;
+  background-color: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 1rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #e6edf3;
+}
+
+.modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  font-size: 1rem;
+  cursor: pointer;
+  border-radius: 0.375rem;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.modal-close:hover {
+  background-color: #21262d;
+  color: #f85149;
+}
+
+.modal-drop-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  border: 2px dashed #30363d;
+  border-radius: 0.75rem;
+  background-color: rgba(22, 27, 34, 0.5);
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.modal-drop-zone.drag-over {
+  background-color: rgba(31, 111, 235, 0.1);
+  border-color: #1f6feb;
+}
+
+.drop-zone-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cloud-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  color: #8b949e;
+}
+
+.drop-text {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #c9d1d9;
+}
+
+.choose-btn {
+  padding: 0.4rem 1rem;
+  background-color: transparent;
+  color: #1f6feb;
+  border: 1px solid #1f6feb;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.choose-btn:hover {
+  background-color: #1f6feb;
+  color: #ffffff;
+}
+
+.hidden-input {
+  display: none;
+}
+
+.modal-selected-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  background-color: rgba(33, 38, 45, 0.8);
+  border: 1px solid #30363d;
+  border-radius: 0.375rem;
+  font-size: 0.8rem;
+  color: #c9d1d9;
+}
+
+.chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  font-size: 0.7rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.chip-remove:hover {
+  color: #f85149;
+}
+
+.modal-upload-btn {
+  width: 100%;
+}
+
+.modal-status {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #8b949e;
+  text-align: center;
+}
+
+.bottom-anchor {
+  height: 1px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>
