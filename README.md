@@ -34,7 +34,7 @@ Every time the backend starts, the vector store is cleared — only files you up
 | LLM            | [Ollama](https://ollama.com) + Llama 3.1 8B |
 | Embeddings     | SentenceTransformers (`all-MiniLM-L6-v2`)   |
 | Vector DB      | ChromaDB (local, persistent)                |
-| PDF Parsing    | pypdf                                       |
+| PDF + DOCX Parsing | pypdf + python-docx                     |
 | Backend API    | FastAPI + Uvicorn                           |
 | Frontend       | Vue 3 + Vite (Composition API)              |
 | Containerisation | Docker + Docker Compose                   |
@@ -148,9 +148,9 @@ Open **http://localhost:5173**
 ## 📖 How to Use
 
 1. Open **http://localhost:5173**
-2. Click **Choose Files** and select a PDF, TXT, DOCX or MD file
-3. Click **Upload** and wait for the confirmation (e.g. *"Processed 1 file(s). 42 chunks added"*)
-4. Repeat steps 2–3 to upload additional documents one at a time
+2. Click the **paperclip icon** next to the input bar to open the upload modal
+3. Drag and drop files or click **Choose Files** — supports PDF, TXT, MD and DOCX
+4. Click **Upload** and wait for the confirmation message
 5. Type a question about your documents and press **Enter** or click **Send**
 6. The assistant answers with source citations below each response
 
@@ -240,6 +240,9 @@ Swap `LLM_MODEL` to any model supported by Ollama (e.g. `mistral:7b`, `llama3.2:
 - [x] Streaming responses (token-by-token)
 - [x] Uploaded files panel showing filenames with thumbnails
 - [x] Multiple file upload (up to 5 files simultaneously)
+- [x] File upload modal with drag and drop
+- [x] SVG paperclip attach button in input bar
+- [x] Welcome screen with animated header transition
 
 ---
 
