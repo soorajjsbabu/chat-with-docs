@@ -15,7 +15,7 @@ RAG = **Retrieval-Augmented Generation**. Instead of asking an LLM a question bl
 The pipeline runs in six stages:
 
 ```
-1. LOAD      → parse uploaded PDF / TXT / DOCX/MD files from memory
+1. LOAD      → parse uploaded PDF / TXT / MD / DOCX files from memory
 2. CHUNK     → split documents into overlapping passages
 3. EMBED     → convert each chunk into a vector (SentenceTransformers)
 4. STORE     → persist vectors in a local vector database (ChromaDB)
@@ -29,16 +29,16 @@ Every time the backend starts, the vector store is cleared — only files you up
 
 ## 🛠️ Tech Stack
 
-| Layer          | Tool                                        |
-|----------------|---------------------------------------------|
-| LLM            | [Ollama](https://ollama.com) + Llama 3.1 8B |
-| Embeddings     | SentenceTransformers (`all-MiniLM-L6-v2`)   |
-| Vector DB      | ChromaDB (local, persistent)                |
-| PDF + DOCX Parsing | pypdf + python-docx                     |
-| Backend API    | FastAPI + Uvicorn                           |
-| Frontend       | Vue 3 + Vite (Composition API)              |
-| Containerisation | Docker + Docker Compose                   |
-| Language       | Python 3.12                                 |
+| Layer              | Tool                                        |
+|--------------------|---------------------------------------------|
+| LLM                | [Ollama](https://ollama.com) + Llama 3.1 8B |
+| Embeddings         | SentenceTransformers (`all-MiniLM-L6-v2`)   |
+| Vector DB          | ChromaDB (local, persistent)                |
+| PDF + DOCX Parsing | pypdf + python-docx                         |
+| Backend API        | FastAPI + Uvicorn                           |
+| Frontend           | Vue 3 + Vite (Composition API)              |
+| Containerisation   | Docker + Docker Compose                     |
+| Language           | Python 3.12                                 |
 
 ---
 
@@ -46,7 +46,7 @@ Every time the backend starts, the vector store is cleared — only files you up
 
 **To run with Docker (recommended):**
 - [Docker Desktop](https://www.docker.com/products/docker-desktop)
-- NVIDIA GPU with drivers 526+ (optional, for GPU acceleration)
+- NVIDIA GPU with drivers 526+ — optional, for GPU acceleration (Windows/Linux only)
 
 **To run locally without Docker:**
 - Python 3.10+
@@ -58,39 +58,30 @@ Every time the backend starts, the vector store is cleared — only files you up
 
 ## 🐳 Quick Start with Docker (Recommended)
 
-This is the easiest way to run the app — one command starts everything.
+### 🪟 Windows / Linux (with NVIDIA GPU support)
 
-### 1. Clone the repository
+**1. Clone the repository**
 
 ```bash
 git clone https://github.com/soorajjsbabu/chat-with-docs.git
 cd chat-with-docs
 ```
 
-### 2. Start all services
+**2. Start all services**
 
 ```bash
 docker compose up --build
 ```
 
-This starts three containers automatically:
-- **Ollama** — LLM server (port 11434)
-- **FastAPI backend** — REST API (port 8000)
-- **Vue frontend** — served by Nginx (port 5173)
+**3. Pull the LLM model**
 
-First build takes 3-5 minutes while it downloads images and installs dependencies.
-
-### 3. Pull the LLM model
-
-In a new terminal (while docker compose is running):
+In a new terminal while docker compose is running:
 
 ```bash
 docker exec -it chat-with-docs-ollama-1 ollama pull llama3.1:8b
 ```
 
-This downloads the Llama 3.1 8B model (~5 GB) into the container.
-
-### 4. Open the app
+**4. Open the app**
 
 Go to **http://localhost:5173** in your browser.
 
@@ -98,25 +89,77 @@ Go to **http://localhost:5173** in your browser.
 
 ---
 
+### 🍎 Apple Silicon (Mac M1 / M2 / M3 / M4)
+
+Docker on Mac doesn't support NVIDIA GPU passthrough, so a separate compose file is provided that removes the GPU config. Ollama still uses the Apple Neural Engine (Metal) automatically for fast inference.
+
+**1. Clone the repository**
+
+```bash
+git clone https://github.com/soorajjsbabu/chat-with-docs.git
+cd chat-with-docs
+```
+
+**2. Start all services using the Mac compose file**
+
+```bash
+docker compose -f docker-compose.mac.yml up --build
+```
+
+**3. Pull the LLM model**
+
+In a new terminal while docker compose is running:
+
+```bash
+docker exec -it chat-with-docs-ollama-1 ollama pull llama3.1:8b
+```
+
+**4. Open the app**
+
+Go to **http://localhost:5173** in your browser.
+
+> **Note:** On Apple Silicon, Ollama uses Metal GPU acceleration automatically — no additional setup needed.
+
+---
+
+### Updating to the latest version
+
+If you already cloned the repo and want the latest changes:
+
+```bash
+git pull
+docker compose down
+docker compose up --build   # Windows/Linux
+# or
+docker compose -f docker-compose.mac.yml down
+docker compose -f docker-compose.mac.yml up --build   # Mac
+```
+
+The Ollama model is stored in a Docker volume and does not need to be re-downloaded after updates.
+
+---
+
 ## 🚀 Running Without Docker
 
-If you prefer to run without Docker, you need three terminals.
+If you prefer to run without Docker, you need three terminals running simultaneously.
 
 ### Setup
 
 ```bash
-# 1. Create virtual environment
-python -m venv .venv
+# 1. Create and activate virtual environment
 
 # Windows
+python -m venv .venv
 .venv\Scripts\activate
+
 # macOS/Linux
+python3 -m venv .venv
 source .venv/bin/activate
 
 # 2. Install Python dependencies
 pip install -r requirements.txt
 
-# 3. Pull the Ollama model
+# 3. Pull the Ollama model (~5 GB)
 ollama pull llama3.1:8b
 
 # 4. Install frontend dependencies
@@ -149,12 +192,14 @@ Open **http://localhost:5173**
 
 1. Open **http://localhost:5173**
 2. Click the **paperclip icon** next to the input bar to open the upload modal
-3. Drag and drop files or click **Choose Files** — supports PDF, TXT, MD and DOCX
-4. Click **Upload** and wait for the confirmation message
-5. Type a question about your documents and press **Enter** or click **Send**
-6. The assistant answers with source citations below each response
+3. Drag and drop files onto the zone or click **Choose Files**
+4. Supports PDF, TXT, MD and DOCX — up to 5 files at a time
+5. Click **Upload** and wait for the confirmation (e.g. *"Processed 2 file(s). 84 chunks added"*)
+6. The modal closes automatically after a successful upload
+7. Type a question about your documents and press **Enter** or click **Send**
+8. The assistant streams the answer token by token with source citations below
 
-> **Note:** The vector store clears on every backend restart. Re-upload your files after restarting.
+> **Note:** The vector store clears on every backend restart. Re-upload your files after restarting the server.
 
 ---
 
@@ -163,26 +208,29 @@ Open **http://localhost:5173**
 ```
 chat-with-docs/
 ├── src/
-│   ├── config.py         # All settings — models, chunk size, top-k
-│   ├── loader.py         # Stage 1: parse PDFs and text files from memory
+│   ├── config.py         # All settings — models, chunk size, top-k, temperature
+│   ├── loader.py         # Stage 1: parse PDF, TXT, MD, DOCX files from memory
 │   ├── chunker.py        # Stage 2: split text into overlapping chunks
 │   ├── embedder.py       # Stage 3: convert chunks to vectors
 │   ├── vectorstore.py    # Stage 4: store and query vectors (ChromaDB)
-│   ├── ingest.py         # Orchestrates stages 1–4
-│   └── rag.py            # Stages 5–6: retrieve chunks + generate answer
+│   ├── ingest.py         # Orchestrates stages 1–4 for local ingestion
+│   └── rag.py            # Stages 5–6: retrieve chunks + generate/stream answer
 ├── api/
-│   └── main.py           # FastAPI app — /api/query and /api/upload endpoints
+│   └── main.py           # FastAPI — /api/query, /api/query/stream, /api/upload
 ├── frontend/
 │   ├── src/
-│   │   ├── App.vue       # Main chat UI component
-│   │   └── style.css     # Global styles
+│   │   ├── App.vue       # Chat UI — welcome screen, modal upload, streaming
+│   │   └── style.css     # Global styles and dark gradient theme
 │   ├── Dockerfile        # Frontend container (Node 22 + Nginx)
 │   └── package.json
-├── screenshots/
-│   └── ui.png
 ├── tests/
+│   └── eval.py           # RAG evaluation — retrieval, faithfulness, abstention
+├── screenshots/
+│   └── UI.png
+├── docs/                 # Local documents for CLI ingestion (gitignored)
 ├── Dockerfile            # Backend container (Python 3.12)
-├── docker-compose.yml    # Orchestrates all 3 services
+├── docker-compose.yml    # Windows/Linux — includes NVIDIA GPU passthrough
+├── docker-compose.mac.yml # macOS Apple Silicon — no GPU config
 ├── .dockerignore
 ├── .gitignore
 ├── requirements.txt
@@ -193,12 +241,12 @@ chat-with-docs/
 
 ## 🔌 API Endpoints
 
-| Method | Endpoint             | Description                                       |
-|--------|----------------------|---------------------------------------------------|
-| POST   | `/api/query`         | Ask a question — `{"question": "string"}`         |
-| POST   | `/api/query/stream`  | Stream answer token-by-token (`text/event-stream`)  |
-| POST   | `/api/upload`        | Upload files (`multipart/form-data`)              |
-| GET    | `/api/health`        | Health check — `{"status": "ok"}`                 |
+| Method | Endpoint            | Description                                        |
+|--------|---------------------|----------------------------------------------------|
+| POST   | `/api/query`        | Ask a question — `{"question": "string"}`          |
+| POST   | `/api/query/stream` | Stream answer token-by-token (`text/event-stream`) |
+| POST   | `/api/upload`       | Upload files (`multipart/form-data`)               |
+| GET    | `/api/health`       | Health check — `{"status": "ok"}`                  |
 
 Interactive API docs: **http://localhost:8000/docs**
 
@@ -209,11 +257,12 @@ Interactive API docs: **http://localhost:8000/docs**
 All settings are in `src/config.py`:
 
 ```python
-EMBED_MODEL   = "all-MiniLM-L6-v2"      # SentenceTransformers model
-LLM_MODEL     = "llama3.1:8b"           # Ollama model name
-CHUNK_SIZE    = 1200                    # Characters per chunk
-CHUNK_OVERLAP = 200                     # Overlap between chunks
-TOP_K         = 6                       # Chunks retrieved per question
+EMBED_MODEL   = "all-MiniLM-L6-v2"                          # SentenceTransformers model
+LLM_MODEL     = "llama3.1:8b"                               # Ollama model name
+CHUNK_SIZE    = 1200                                        # Characters per chunk
+CHUNK_OVERLAP = 200                                         # Overlap between chunks
+TOP_K         = 8                                           # Chunks retrieved per question
+TEMPERATURE   = 0.1                                         # Low = precise, High = creative
 OLLAMA_URL    = os.getenv("OLLAMA_URL", "http://localhost:11434")
 ```
 
@@ -230,19 +279,20 @@ Swap `LLM_MODEL` to any model supported by Ollama (e.g. `mistral:7b`, `llama3.2:
 - [x] ChromaDB vector store with persistence
 - [x] RAG query engine with source citations
 - [x] "I don't know" guardrail — model abstains when answer isn't in context
-- [x] FastAPI backend with query and upload endpoints
-- [x] Vue 3 frontend with dark theme chat UI
+- [x] FastAPI backend with query, stream and upload endpoints
+- [x] Vue 3 frontend with dark gradient theme
 - [x] Live file upload — documents indexed at runtime
-- [x] Multi-file upload support
-- [x] Docker + Docker Compose — one-command setup
-- [x] NVIDIA GPU passthrough for Ollama in Docker
-- [x] Answer faithfulness evaluation script
-- [x] Streaming responses (token-by-token)
-- [x] Uploaded files panel showing filenames with thumbnails
-- [x] Multiple file upload (up to 5 files simultaneously)
+- [x] Multi-file upload — up to 5 files simultaneously
 - [x] File upload modal with drag and drop
 - [x] SVG paperclip attach button in input bar
+- [x] Uploaded files panel showing indexed documents
 - [x] Welcome screen with animated header transition
+- [x] Token-by-token streaming responses
+- [x] Docker + Docker Compose — one-command setup
+- [x] NVIDIA GPU passthrough for Ollama in Docker (Windows/Linux)
+- [x] Apple Silicon support via docker-compose.mac.yml
+- [x] Answer faithfulness evaluation — 89% overall score across 3 documents
+- [x] Low temperature (0.1) for reduced hallucination
 
 ---
 
@@ -252,24 +302,27 @@ Swap `LLM_MODEL` to any model supported by Ollama (e.g. `mistral:7b`, `llama3.2:
 - Why embedding normalisation matters for cosine similarity search
 - How vector databases differ from traditional databases
 - Designing a responsible AI guardrail that prevents hallucination
+- Why low temperature improves factual accuracy in RAG systems
 - Connecting a FastAPI backend to a Vue 3 frontend with CORS
 - Handling multipart file uploads in FastAPI with `python-multipart`
 - Multi-container Docker setup with service networking and named volumes
-- GPU passthrough to Docker containers using NVIDIA Container Toolkit
-- Building a RAG evaluation framework to measure retrieval accuracy, answer faithfulness and abstention rate across multiple documents
+- NVIDIA GPU passthrough to Docker containers on Windows
+- Apple Silicon Metal GPU acceleration with Ollama on Mac
+- Building a RAG evaluation framework measuring retrieval accuracy, answer faithfulness and abstention rate across multiple documents
 - Implementing token-by-token streaming with server-sent events connecting FastAPI StreamingResponse to Vue's ReadableStream API
 
 ---
 
 ## 📝 Known Limitations
 
-- Vector store clears on server restart (persistence across sessions is a planned improvement)
-- Large PDFs with complex layouts may have lower retrieval accuracy due to pypdf text extraction
+- Vector store clears on server restart — re-upload files after restarting
+- Large PDFs with complex layouts (columns, tables) may have lower retrieval accuracy due to pypdf text extraction order
 - No authentication — intended for local use only
+- Docker GPU passthrough not supported on Apple Silicon (Metal acceleration used instead)
 
 ---
 
 ## 👤 Author
 
-**Sooraj Srinivasa Babu**  
+**Sooraj Srinivasa Babu**
 [LinkedIn](https://linkedin.com/in/soorajsrinivasababu) · [GitHub](https://github.com/soorajjsbabu)
