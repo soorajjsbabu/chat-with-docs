@@ -14,6 +14,7 @@ const uploadStatus = ref('')
 const fileInput = ref(null)
 const isDragOver = ref(false)
 const modalOpen = ref(false)
+const isTransitioning = ref(false)
 
 const uploadedFiles = ref([])
 
@@ -97,7 +98,7 @@ async function uploadFiles() {
 
     setTimeout(() => {
       closeModal()
-    }, 2000)
+    }, 0.500)
   } catch (err) {
     uploadStatus.value = `Upload failed: ${err.message}`
   } finally {
@@ -108,6 +109,14 @@ async function uploadFiles() {
 async function sendMessage() {
   const question = input.value.trim()
   if (!question || loading.value) return
+
+  if (messages.value.length === 0) {
+    isTransitioning.value = true
+    await nextTick()
+    setTimeout(() => {
+      isTransitioning.value = false
+    }, 800)
+  }
 
   messages.value.push({
     role: 'user',
@@ -198,48 +207,56 @@ watch(loading, scrollToBottom)
 
 <template>
   <div class="app">
-    <transition name="header">
-      <header v-if="messages.length" class="small-header">
-        <h1>Chat With Your Documents</h1>
-      </header>
-    </transition>
+    <div
+      class="title-overlay"
+      :class="{ 'is-header': messages.length > 0 || isTransitioning }"
+    >
+      <h1 class="animated-title">Chat With Your Documents</h1>
+      <p
+        class="subtitle"
+        :class="{ 'is-hidden': messages.length > 0 || isTransitioning }"
+      >
+        Upload a document and ask anything about it
+      </p>
+    </div>
 
-    <main ref="chatContainer" class="chat">
-      <div v-if="!messages.length" class="welcome">
-        <h2 class="welcome-title">Chat With Your Documents</h2>
-        <p class="welcome-desc">Upload a document and ask anything about it</p>
-      </div>
-
-      <template v-else>
-        <div
-          v-for="(msg, index) in messages"
-          :key="index"
-          class="message-row"
-          :class="msg.role"
-        >
-          <div class="bubble">
-            <p v-if="msg.content" class="content">
-              {{ msg.content }}
-              <span
-                v-if="loading && index === messages.length - 1 && msg.role === 'assistant'"
-                class="cursor"
-              >|</span>
-            </p>
-            <div
-              v-else-if="loading && index === messages.length - 1 && msg.role === 'assistant'"
-              class="typing-indicator"
-            >
-              <span></span>
-              <span></span>
-              <span></span>
+    <main
+      ref="chatContainer"
+      class="chat"
+      :class="{ 'has-header': messages.length > 0 || isTransitioning }"
+    >
+      <template v-if="messages.length">
+        <div class="messages-container">
+          <div
+            v-for="(msg, index) in messages"
+            :key="index"
+            class="message-row"
+            :class="msg.role"
+          >
+            <div class="bubble">
+              <p v-if="msg.content" class="content">
+                {{ msg.content }}
+                <span
+                  v-if="loading && index === messages.length - 1 && msg.role === 'assistant'"
+                  class="cursor"
+                >|</span>
+              </p>
+              <div
+                v-else-if="loading && index === messages.length - 1 && msg.role === 'assistant'"
+                class="typing-indicator"
+              >
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <p v-else class="content"></p>
+              <p v-if="msg.role === 'assistant' && msg.sources.length" class="sources">
+                Sources: {{ msg.sources.join(', ') }}
+              </p>
             </div>
-            <p v-else class="content"></p>
-            <p v-if="msg.role === 'assistant' && msg.sources.length" class="sources">
-              Sources: {{ msg.sources.join(', ') }}
-            </p>
           </div>
+          <div ref="bottomAnchor" class="bottom-anchor"></div>
         </div>
-        <div ref="bottomAnchor" class="bottom-anchor"></div>
       </template>
     </main>
 
@@ -312,7 +329,7 @@ watch(loading, scrollToBottom)
                 stroke-linecap="round"
                 stroke-linejoin="round"
               >
-                <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                <path d="M4 17v2a2 2 0 0 0 2 2h12a`2 `2 0 0 0 2-2v-2" />
                 <polyline points="7 11 12 16 17 11" />
                 <line x1="12" y1="16" x2="12" y2="4" />
               </svg>
@@ -376,32 +393,64 @@ html, body, #app {
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #1a1a2e 100%);
 }
 
-/* Small header (chat state) */
-.small-header {
-  flex-shrink: 0;
+/* Title overlay - transitions between welcome center and header top */
+.title-overlay {
+  position: fixed;
+  z-index: 50;
+  text-align: center;
+  width: 100%;
+  pointer-events: none;
+  transition: all 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Welcome state (centered) */
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0;
+  background-color: transparent;
+  border-bottom: 1px solid transparent;
+  backdrop-filter: blur(0px);
+}
+
+.title-overlay.is-header {
+  /* Header state (top bar) */
+  top: 0;
+  left: 0;
+  transform: translate(0, 0);
   padding: 0.75rem 1.5rem;
   background-color: rgba(22, 27, 34, 0.6);
-  backdrop-filter: blur(8px);
   border-bottom: 1px solid #30363d;
-  text-align: center;
+  backdrop-filter: blur(8px);
 }
 
-.small-header h1 {
+.animated-title {
   margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #e6edf3;
+  transition: all 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+}
+
+.title-overlay.is-header .animated-title {
   font-size: 1rem;
   font-weight: 600;
-  color: #e6edf3;
 }
 
-.header-enter-active,
-.header-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+.subtitle {
+  margin: 0.75rem 0 0 0;
+  font-size: 1rem;
+  color: #8b949e;
+  opacity: 1;
+  max-height: 2rem;
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
 }
 
-.header-enter-from,
-.header-leave-to {
+.subtitle.is-hidden {
   opacity: 0;
-  transform: translateY(-10px);
+  max-height: 0;
+  margin-top: 0;
 }
 
 /* Chat area */
@@ -412,31 +461,19 @@ html, body, #app {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  transition: padding-top 0.7s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Welcome screen */
-.welcome {
-  flex: 1;
+.chat.has-header {
+  padding-top: 4.5rem;
+}
+
+/* Messages container fade-in */
+.messages-container {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: 0.75rem;
+  gap: 1rem;
   animation: fadeIn 0.5s ease-out;
-}
-
-.welcome-title {
-  margin: 0;
-  font-size: 2rem;
-  font-weight: 700;
-  color: #e6edf3;
-}
-
-.welcome-desc {
-  margin: 0;
-  font-size: 1rem;
-  color: #8b949e;
 }
 
 /* Message rows */
