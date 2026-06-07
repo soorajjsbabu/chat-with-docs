@@ -4,7 +4,7 @@ A full-stack RAG (Retrieval-Augmented Generation) app that lets you upload your 
 
 Built with Python, SentenceTransformers, ChromaDB, Ollama, FastAPI, and Vue.js. Runs fully locally — no OpenAI API key, no cloud costs. One-command setup with Docker.
 
-![Chat With Your Docs UI](./screenshots/UI.png)
+![Chat With Your Docs UI](./screenshots/chat-with-docs-demo-ezgif.com-speed.gif)
 
 ---
 
